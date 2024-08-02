@@ -276,9 +276,9 @@ function getMainKeys(){
             [['text'=>$buttonValues['individual_existence'],'callback_data'=>"availableServers2"]]:[]
         ),
         [['text'=>$buttonValues['application_links'],'callback_data'=>"reciveApplications"],['text'=>$buttonValues['my_tickets'],'callback_data'=>"supportSection"]],
-        (($botState['searchState']=="on" || $from_id == $admin || $userInfo['isAdmin'] == true)?
-            [['text'=>$buttonValues['search_config'],'callback_data'=>"showUUIDLeft"]]
-            :[]),
+        //(($botState['searchState']=="on" || $from_id == $admin || $userInfo['isAdmin'] == true)?
+            //[['text'=>$buttonValues['search_config'],'callback_data'=>"showUUIDLeft"]]
+            //:[]),
     ]);
     $stmt = $connection->prepare("SELECT * FROM `setting` WHERE `type` LIKE '%MAIN_BUTTONS%'");
     $stmt->execute();
