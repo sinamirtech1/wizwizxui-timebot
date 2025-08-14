@@ -2508,7 +2508,7 @@ if((preg_match('/^discountCustomPlanDay(\d+)/',$userInfo['step'], $match) || pre
     	$volume = $match[3];
         $days = $match[4];
         if($match['buyType'] != "much"){
-            if(preg_match('/^(?![_-])(?!.*[_-]$)[A-Za-z0-9_-]{3,32}$/',$text)){} else{
+            if(preg_match('/^(?![_-])(?!.*[_-]$)[a-z0-9_-]{3,32}$/i',$text)){} else{
                 sendMessage($mainValues['incorrect_config_name']);
                 exit();
             }
@@ -2718,7 +2718,7 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
             }else{ sendMessage($mainValues['send_only_number']); exit(); }
         }        
     }
-    elseif(preg_match("/^(?![_-])(?!.*[_-]$)[A-Za-z0-9_-]{3,32}$/",$userInfo['step'])){
+    elseif(preg_match("/^(?![_-])(?!.*[_-]$)[a-z0-9_-]{3,32}$/i",$userInfo['step'])){
         if(preg_match('/^[a-z]+[0-9]+$/',$text)){
             $remark = $text;
             setUser();
