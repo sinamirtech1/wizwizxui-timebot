@@ -2767,10 +2767,12 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
 
         $agentBought = true;
     }
-    if($price == 0 or ($from_id == $admin)){
+    if(((int)$respd['price'] == 0) || ($from_id == $admin)){
         $keyboard[] = [['text' => '📥 دریافت رایگان', 'callback_data' => "freeTrial{$id}_{$match['buyType']}"]];
         setUser($remark, 'temp');
     }else{
+        if ($price <= 0) $price = 1;
+
         $token = base64_encode("{$from_id}.{$id}");
         
         if(!preg_match('/^discountSelectPlan/', $userInfo['step'])){
