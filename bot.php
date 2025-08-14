@@ -2630,7 +2630,7 @@ if($data=="getTestAccount"){
 }
 if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match) || 
     preg_match('/selectPlan(\d+)_(\d+)_(?<buyType>\w+)/',$userInfo['step'], $match) || 
-    preg_match('/enterAccountName(\d+)_(\d+)_(?<buyType>\w+)/',$userInfo['step'], $match) || 
+    preg_match('/enterAccountName(\d+)_(\d+)_(?P<buyType>\w+)_(?<buyType>\w+)/',$userInfo['step'], $match) || 
     preg_match('/selectPlan(\d+)_(\d+)_(?<buyType>\w+)/',$data, $match)) && 
     ($botState['sellState']=="on" ||$from_id ==$admin) && 
     $text != $buttonValues['cancel']){
@@ -2719,7 +2719,7 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
         }        
     }
     elseif(preg_match("/^(?![_-])(?!.*[_-]$)[a-z0-9_-]{3,32}$/i",$userInfo['step'])){
-        if(preg_match('/^[a-z]+[0-9]+$/',$text)){
+        if(preg_match('/^[A-Za-z0-9_-]{3,32}$/',$text)){
             $remark = $text;
             setUser();
         } else{
