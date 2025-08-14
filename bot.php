@@ -2508,7 +2508,7 @@ if((preg_match('/^discountCustomPlanDay(\d+)/',$userInfo['step'], $match) || pre
     	$volume = $match[3];
         $days = $match[4];
         if($match['buyType'] != "much"){
-            if(preg_match('/^(?![_-])(?!.*[_-]$)[a-z0-9_-]{3,32}$/i',$text)){} else{
+            if(preg_match('/^[A-Za-z0-9_-]{3,32}$/',$text)){} else{
                 sendMessage($mainValues['incorrect_config_name']);
                 exit();
             }
@@ -2630,7 +2630,7 @@ if($data=="getTestAccount"){
 }
 if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match) || 
     preg_match('/selectPlan(\d+)_(\d+)_(?<buyType>\w+)/',$userInfo['step'], $match) || 
-    preg_match('/enterAccountName(\d+)_(\d+)_(?P<buyType>\w+)_(?<buyType>\w+)/',$userInfo['step'], $match) || 
+    preg_match('/enterAccountName(\d+)_(\d+)_(?<buyType>\w+)/',$userInfo['step'], $match) || 
     preg_match('/selectPlan(\d+)_(\d+)_(?<buyType>\w+)/',$data, $match)) && 
     ($botState['sellState']=="on" ||$from_id ==$admin) && 
     $text != $buttonValues['cancel']){
@@ -2718,7 +2718,7 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
             }else{ sendMessage($mainValues['send_only_number']); exit(); }
         }        
     }
-    elseif(preg_match("/^(?![_-])(?!.*[_-]$)[a-z0-9_-]{3,32}$/i",$userInfo['step'])){
+    elseif(preg_match("/enterAccountName(\d+)_(\d+)_(?<buyType>\w+)/",$userInfo['step'], $match)){
         if(preg_match('/^[A-Za-z0-9_-]{3,32}$/',$text)){
             $remark = $text;
             setUser();
