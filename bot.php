@@ -2508,7 +2508,7 @@ if((preg_match('/^discountCustomPlanDay(\d+)/',$userInfo['step'], $match) || pre
     	$volume = $match[3];
         $days = $match[4];
         if($match['buyType'] != "much"){
-            if(preg_match('/^[A-Za-z0-9_-]{3,32}$/',$text)){} else{
+            if(preg_match('/^[a-z]+[0-9]+$/',$text)){} else{
                 sendMessage($mainValues['incorrect_config_name']);
                 exit();
             }
@@ -2712,14 +2712,17 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
         if($match['buyType'] == "much"){
             if(is_numeric($text)){
                 if($text > 0){
-                    $accountCount = $text;
-                    setUser();
-                }else{sendMessage( $mainValues['send_positive_number']); exit(); }
+                    $accountCount = (int)$text;
+                    // After getting bulk count, ask for remark instead of proceeding
+                    sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و -).", $cancelKey);
+                    setUser("enterBulkRemarkPlan{$id}_{$accountCount}");
+                    exit();
+}else{sendMessage( $mainValues['send_positive_number']); exit(); }
             }else{ sendMessage($mainValues['send_only_number']); exit(); }
         }        
     }
     elseif(preg_match("/enterAccountName(\d+)_(\d+)/",$userInfo['step'])){
-        if(preg_match('/^[A-Za-z0-9_-]{3,32}$/',$text)){
+        if(preg_match('/^[a-z]+[0-9]+$/',$text)){
             $remark = $text;
             setUser();
         } else{
@@ -2767,8 +2770,7 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
 
         $agentBought = true;
     }
-    if(((int)$respd['price'] == 0) || ($from_id == $admin)){
-
+    if($price == 0 or ($from_id == $admin)){
         $keyboard[] = [['text' => '📥 دریافت رایگان', 'callback_data' => "freeTrial{$id}_{$match['buyType']}"]];
         setUser($remark, 'temp');
     }else{
@@ -3532,7 +3534,6 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
         $agentBought = true;
     }
 
-    // فقط اگر «پایه» رایگانه یا ادمینی → دریافت رایگان
     if ($base == 0 || $from_id == $admin) {
         $keyboard = [];
         $keyboard[] = [['text' => '📥 دریافت رایگان', 'callback_data' => "freeTrial{$planId}_much"]];
@@ -3541,9 +3542,8 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
         exit();
     }
 
-    if ($price <= 0) $price = 1; // گارد
+    if ($price <= 0) $price = 1;
 
-    // ساخت رکورد پرداخت (با agent_count و description=remark)
     $hash_id = bin2hex(random_bytes(8));
     $time    = time();
 
@@ -3555,7 +3555,6 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
     $rowId = $stmt->insert_id;
     $stmt->close();
 
-    // دکمه‌های پرداخت
     $keyboard = ['inline_keyboard'=>[]];
     if ($botState['cartToCartState'] == "on")  $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_cart_to_cart'],  'callback_data'=>"payWithCartToCart$hash_id"]];
     if ($botState['walletState']    == "on")  $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_wallet'],        'callback_data'=>"payWithWallet$hash_id"]];
