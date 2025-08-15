@@ -6152,3 +6152,73 @@ function addUser($server_id, $client_id, $protocol, $port, $expiryTime, $remark,
 }
 
 ?>
+
+
+// === PATCH B1: Agent discount helper for renew (idempotent) ===
+if (!function_exists('getAgentDiscountPercentFor')) {
+    function getAgentDiscountPercentFor($agentUserId, $planId = null, $serverId = null) {
+        global $connection;
+        if (!$agentUserId) return 0;
+        if (!isset($connection)) return 0;
+        $stmt = @$connection->prepare("SELECT `is_agent`, `discount_percent` FROM `users` WHERE `userid` = ?");
+        if (!$stmt) { return 0; }
+        $stmt->bind_param("i", $agentUserId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res->num_rows == 0) return 0;
+        $row = $res->fetch_assoc();
+        if (intval($row['is_agent']) != 1) return 0;
+
+        $discounts = @json_decode($row['discount_percent'], true);
+        if (!is_array($discounts)) return 0;
+
+        // Priority: plan > server > normal
+        if ($planId !== null && isset($discounts['plan']) && isset($discounts['plan'][$planId])) {
+            return intval($discounts['plan'][$planId]);
+        }
+        if ($serverId !== null && isset($discounts['server']) && isset($discounts['server'][$serverId])) {
+            return intval($discounts['server'][$serverId]);
+        }
+        if (isset($discounts['normal'])) {
+            return intval($discounts['normal']);
+        }
+        return 0;
+    }
+}
+// === END PATCH B1 ===
+
+
+// === PATCH B2: Final renew price calculation (plan -> coupon -> agent) (idempotent) ===
+if (!function_exists('calcFinalRenewPrice')) {
+    function calcFinalRenewPrice($basePrice, $qty, $payerUserId, $planId = null, $serverId = null, $coupon = null) {
+        $price = max(0, intval($basePrice)) * max(1, intval($qty));
+
+        // Plan discount if available
+        if (function_exists('getPlanDiscountPercent') && $planId !== null) {
+            $planOff = intval(@getPlanDiscountPercent($planId));
+            if ($planOff > 0) { $price -= intval(($price * $planOff) / 100); }
+        }
+
+        // Coupon
+        if ($coupon && function_exists('isValidCouponForRenew') && function_exists('getCouponPercent')) {
+            if (@isValidCouponForRenew($coupon, $planId, $payerUserId)) {
+                $cup = intval(@getCouponPercent($coupon));
+                if ($cup > 0) { $price -= intval(($price * $cup) / 100); }
+            }
+        }
+
+        // Agent discount
+        if (function_exists('getAgentDiscountPercentFor')) {
+            $agentOff = intval(@getAgentDiscountPercentFor($payerUserId, $planId, $serverId));
+            if ($agentOff > 0) { $price -= intval(($price * $agentOff) / 100); }
+        }
+
+        // Min price enforcement if any
+        if (function_exists('getPlanMinPrice') && $planId !== null) {
+            $minPrice = @getPlanMinPrice($planId);
+            if ($minPrice !== null && $price < $minPrice) $price = $minPrice;
+        }
+        return max(0, $price);
+    }
+}
+// === END PATCH B2 ===
