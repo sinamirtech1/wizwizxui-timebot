@@ -1,4 +1,22 @@
 <?php
+// === PATCH A2: Handle agent bulk quantity from text (idempotent) ===
+if (isset($userInfo['step']) && $userInfo['step'] === 'awaiting_agent_count' && isset($userInfo['is_agent']) && $userInfo['is_agent'] && isset($text)) {
+    $qtyRaw = trim($text);
+    if (!ctype_digit($qtyRaw) || intval($qtyRaw) <= 0) {
+        if (function_exists('sendMessage')) { @sendMessage("❌ تعداد نامعتبره. فقط یک عدد مثبت بفرست (مثلاً 3)."); }
+        return;
+    }
+    $qty = intval($qtyRaw);
+    if (function_exists('setUser')) {
+        // store in temp; if your project uses a different field, change here
+        @setUser($qty, 'temp');
+        @setUser(null, 'step');
+    }
+    if (function_exists('sendMessage')) { @sendMessage("✅ تعداد $qty ثبت شد.\nحالا پلن/سرور رو انتخاب کن…"); }
+    return;
+}
+// === END PATCH A2 ===
+
 include_once 'config.php';
 check();
 $robotState = $botState['botState']??"on";
@@ -10135,3 +10153,26 @@ if ($text == $buttonValues['cancel']) {
     sendMessage($mainValues['reached_main_menu'],getMainKeys());
 }
 ?>
+
+
+// === PATCH A1: Start bulk buy flow for agents (idempotent) ===
+if (isset($data) && $data === "agentMuchBuy" && isset($userInfo['is_agent']) && $userInfo['is_agent']) {
+    if (function_exists('setUser')) { @setUser('awaiting_agent_count', 'step'); }
+    if (function_exists('sendMessage')) { @sendMessage("♾ تعداد اکانت‌هایی که می‌خوای بخری رو به عدد بفرست (مثلاً 5)."); }
+    return;
+}
+// === END PATCH A1 ===
+
+
+// === PATCH A3: Fallback to ensure agent_count is set from temp (idempotent) ===
+if (!function_exists('wwz_get_agent_count')) {
+    function wwz_get_agent_count($userInfo) {
+        $accountCount = 1;
+        if (isset($userInfo['is_agent']) && $userInfo['is_agent']) {
+            $maybeQty = isset($userInfo['temp']) ? $userInfo['temp'] : null;
+            if (is_numeric($maybeQty) && intval($maybeQty) > 0) { $accountCount = intval($maybeQty); }
+        }
+        return $accountCount;
+    }
+}
+// === END PATCH A3 ===
