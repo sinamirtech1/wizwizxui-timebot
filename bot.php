@@ -2718,7 +2718,7 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
             }else{ sendMessage($mainValues['send_only_number']); exit(); }
         }        
     }
-    elseif(preg_match("/enterAccountName(\d+)_(\d+)_(?<buyType>\w+)/",$userInfo['step'], $match)){
+    elseif(preg_match("/enterAccountName(\d+)_(\d+)/",$userInfo['step'])){
         if(preg_match('/^[A-Za-z0-9_-]{3,32}$/',$text)){
             $remark = $text;
             setUser();
@@ -2768,11 +2768,10 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
         $agentBought = true;
     }
     if(((int)$respd['price'] == 0) || ($from_id == $admin)){
+
         $keyboard[] = [['text' => '📥 دریافت رایگان', 'callback_data' => "freeTrial{$id}_{$match['buyType']}"]];
         setUser($remark, 'temp');
     }else{
-        if ($price <= 0) $price = 1;
-
         $token = base64_encode("{$from_id}.{$id}");
         
         if(!preg_match('/^discountSelectPlan/', $userInfo['step'])){
