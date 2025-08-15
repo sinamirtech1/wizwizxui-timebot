@@ -1,22 +1,4 @@
 <?php
-// === PATCH A2: Handle agent bulk quantity from text (idempotent) ===
-if (isset($userInfo['step']) && $userInfo['step'] === 'awaiting_agent_count' && isset($userInfo['is_agent']) && $userInfo['is_agent'] && isset($text)) {
-    $qtyRaw = trim($text);
-    if (!ctype_digit($qtyRaw) || intval($qtyRaw) <= 0) {
-        if (function_exists('sendMessage')) { @sendMessage("❌ تعداد نامعتبره. فقط یک عدد مثبت بفرست (مثلاً 3)."); }
-        return;
-    }
-    $qty = intval($qtyRaw);
-    if (function_exists('setUser')) {
-        // store in temp; if your project uses a different field, change here
-        @setUser($qty, 'temp');
-        @setUser(null, 'step');
-    }
-    if (function_exists('sendMessage')) { @sendMessage("✅ تعداد $qty ثبت شد.\nحالا پلن/سرور رو انتخاب کن…"); }
-    return;
-}
-// === END PATCH A2 ===
-
 include_once 'config.php';
 check();
 $robotState = $botState['botState']??"on";
@@ -2652,6 +2634,13 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
     preg_match('/selectPlan(\d+)_(\d+)_(?<buyType>\w+)/',$data, $match)) && 
     ($botState['sellState']=="on" ||$from_id ==$admin) && 
     $text != $buttonValues['cancel']){
+    // === HOTFIX: ensure step is set for bulk buy to capture numeric quantity ===
+    if ($match['buyType'] == "much" && isset($data) && preg_match('/selectPlan(\d+)_(\d+)_(\w+)/',$data)) {
+        setUser("selectPlan{$match[1]}_{$match[2]}_{$match['buyType']}");
+        sendMessage("🧮 لطفاً تعداد اکانت‌هایی که می‌خوای بخری رو به عدد بفرست (مثلاً 5).");
+        exit();
+    }
+    // === END HOTFIX ===
     if(preg_match('/^discountSelectPlan/', $userInfo['step'])){
         $rowId = $match[3];
         
@@ -6270,6 +6259,14 @@ if(preg_match('/sConfigRenewPlan(\d+)_(\d+)/',$data, $match) && ($botState['sell
 	$sid = $respd['server_id'];
 	$keyboard = array();
     $price =  $respd['price'];
+    // === HOTFIX: apply agent discount on RENEW_SCONFIG ===
+    if(isset($userInfo['is_agent']) && $userInfo['is_agent'] == true){
+        $discounts = json_decode($userInfo['discount_percent'], true);
+        if($botState['agencyPlanDiscount']=="on") $discount = $discounts['plans'][$id]?? $discounts['normal'];
+        else $discount = $discounts['servers'][$sid]?? $discounts['normal'];
+        $price -= floor($price * $discount / 100);
+    }
+    // === END HOTFIX ===
     $token = base64_encode("{$from_id}.{$id}");
     
     $hash_id = RandomString();
@@ -10153,26 +10150,3 @@ if ($text == $buttonValues['cancel']) {
     sendMessage($mainValues['reached_main_menu'],getMainKeys());
 }
 ?>
-
-
-// === PATCH A1: Start bulk buy flow for agents (idempotent) ===
-if (isset($data) && $data === "agentMuchBuy" && isset($userInfo['is_agent']) && $userInfo['is_agent']) {
-    if (function_exists('setUser')) { @setUser('awaiting_agent_count', 'step'); }
-    if (function_exists('sendMessage')) { @sendMessage("♾ تعداد اکانت‌هایی که می‌خوای بخری رو به عدد بفرست (مثلاً 5)."); }
-    return;
-}
-// === END PATCH A1 ===
-
-
-// === PATCH A3: Fallback to ensure agent_count is set from temp (idempotent) ===
-if (!function_exists('wwz_get_agent_count')) {
-    function wwz_get_agent_count($userInfo) {
-        $accountCount = 1;
-        if (isset($userInfo['is_agent']) && $userInfo['is_agent']) {
-            $maybeQty = isset($userInfo['temp']) ? $userInfo['temp'] : null;
-            if (is_numeric($maybeQty) && intval($maybeQty) > 0) { $accountCount = intval($maybeQty); }
-        }
-        return $accountCount;
-    }
-}
-// === END PATCH A3 ===
