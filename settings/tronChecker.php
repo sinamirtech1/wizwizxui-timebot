@@ -28,7 +28,27 @@ while($payParam = $paysList->fetch_assoc()){
     $success = $result['contractRet'];
     
     $stmt = $connection->prepare("SELECT * FROM `users` WHERE `userid` = ?");
-    $stmt->bind_param("i", $user_id);
+    // === PATCH B3: Adjust renew price with agent discount (idempotent) ===
+if (!function_exists('calcFinalRenewPrice')) {
+    // config should have defined it; if not, we skip quietly
+} else {
+    $__qtyRenew = 1;
+    if (isset($payInfo['agent_count']) && intval($payInfo['agent_count']) > 0) { $__qtyRenew = intval($payInfo['agent_count']); }
+    elseif (isset($agent_count) && intval($agent_count) > 0) { $__qtyRenew = intval($agent_count); }
+
+    $__planId  = isset($plan_id) ? $plan_id : (isset($id) ? $id : null);
+    $__serverId= isset($server_id) ? $server_id : (isset($serverId) ? $serverId : null);
+    $__payerId = isset($from_id) ? $from_id : (isset($user_id) ? $user_id : (isset($userid) ? $userid : null));
+    $__coupon  = isset($appliedCoupon) ? $appliedCoupon : (isset($coupon) ? $coupon : null);
+
+    if (isset($price)) {
+        $price = calcFinalRenewPrice($price, $__qtyRenew, $__payerId, $__planId, $__serverId, $__coupon);
+    } elseif (isset($amount)) {
+        $amount = calcFinalRenewPrice($amount, $__qtyRenew, $__payerId, $__planId, $__serverId, $__coupon);
+    }
+}
+// === END PATCH B3 ===
+$stmt->bind_param("i", $user_id);
     $stmt->execute();
     $userInfo = $stmt->get_result()->fetch_assoc();
     $stmt->close();
