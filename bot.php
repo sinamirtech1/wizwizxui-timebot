@@ -2708,16 +2708,12 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
     }
 
     $remark = "";
-    if(preg_match('/^selectPlan(\d+)_(\d+)_(?<buyType>\w+)$/', $userInfo['step'], $match)){
+    if(preg_match("/selectPlan(\d+)_(\d+)_(\w+)/",$userInfo['step'])){
         if($match['buyType'] == "much"){
             if(is_numeric($text)){
                 if($text > 0){
                     $accountCount = $text;
-                    // Redirect to remark collection for bulk purchase
-                    sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و -).", $cancelKey);
-                    setUser("enterBulkRemarkPlan{$match[1]}_{$accountCount}");
-                    exit();
-    
+                    setUser();
                 }else{sendMessage( $mainValues['send_positive_number']); exit(); }
             }else{ sendMessage($mainValues['send_only_number']); exit(); }
         }        
@@ -2771,10 +2767,12 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
 
         $agentBought = true;
     }
-    if($price == 0 or ($from_id == $admin)){
+    if( ((isset($respd['price']) && (int)$respd['price'] == 0)) || ($from_id == $admin)){
         $keyboard[] = [['text' => '📥 دریافت رایگان', 'callback_data' => "freeTrial{$id}_{$match['buyType']}"]];
         setUser($remark, 'temp');
     }else{
+        if ($price <= 0) $price = 1;
+
         $token = base64_encode("{$from_id}.{$id}");
         
         if(!preg_match('/^discountSelectPlan/', $userInfo['step'])){
@@ -3498,76 +3496,6 @@ if($botState['subLinkState'] == "on") $acc_text .= "
     }
     
 }
-
-elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m)) {
-    $remark = trim($text);
-    if (!preg_match('/^[A-Za-z0-9_-]{3,32}$/', $remark)) {
-        sendMessage("❗️رعایت کن: ۳ تا ۳۲ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و -");
-        exit();
-    }
-    $planId = (int)$m[1];
-    $count  = (int)$m[2];
-
-    $stmt = $connection->prepare("SELECT * FROM `server_plans` WHERE `id`=? AND `active`=1");
-    $stmt->bind_param("i", $planId);
-    $stmt->execute();
-    $respd = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if (!$respd) { sendMessage("❌ پلن نامعتبر است."); setUser(); exit(); }
-
-    $base  = (int)$respd['price'];
-    $sid   = (int)$respd['server_id'];
-    $price = $base * $count;
-
-    $agentBought = false;
-    if (!empty($userInfo['is_agent'])) {
-        $discounts = json_decode($userInfo['discount_percent'], true) ?: [];
-        $dflt = isset($discounts['normal']) ? (int)$discounts['normal'] : 0;
-        if ($botState['agencyPlanDiscount'] == "on")
-            $discount = isset($discounts['plans'][$planId]) ? (int)$discounts['plans'][$planId] : $dflt;
-        else
-            $discount = isset($discounts['servers'][$sid]) ? (int)$discounts['servers'][$sid] : $dflt;
-
-        $price -= floor($price * max(0, min(100, $discount)) / 100);
-        if ($price < 0) $price = 0;
-        $agentBought = true;
-    }
-
-    if ($base == 0 || $from_id == $admin) {
-        $keyboard = [];
-        $keyboard[] = [['text' => '📥 دریافت رایگان', 'callback_data' => "freeTrial{$planId}_much"]];
-        setUser($remark, 'temp');
-        sendMessage("پلن انتخاب شد؛ دریافت رایگان:", json_encode(['inline_keyboard'=>$keyboard]));
-        exit();
-    }
-
-    if ($price <= 0) $price = 1;
-
-    $hash_id = bin2hex(random_bytes(8));
-    $time    = time();
-
-    $stmt = $connection->prepare("INSERT INTO `pays`
-        (`hash_id`, `user_id`, `type`, `plan_id`, `volume`, `day`, `price`, `request_date`, `state`, `agent_bought`, `agent_count`, `description`)
-        VALUES (?, ?, 'BUY_SUB', ?, 0, 0, ?, ?, 'pending', ?, ?, ?)");
-    $stmt->bind_param("siiiiiis", $hash_id, $from_id, $planId, $price, $time, $agentBought, $count, $remark);
-    $stmt->execute();
-    $rowId = $stmt->insert_id;
-    $stmt->close();
-
-    $keyboard = ['inline_keyboard'=>[]];
-    if ($botState['cartToCartState'] == "on")  $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_cart_to_cart'],  'callback_data'=>"payWithCartToCart$hash_id"]];
-    if ($botState['walletState']    == "on")  $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_wallet'],        'callback_data'=>"payWithWallet$hash_id"]];
-    if (!empty($zarinpal_merchantID))         $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_zarinpal'],     'callback_data'=>"payWithZarinpal$hash_id"]];
-    if (!empty($nextpay_merchantID))          $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_nextpay'],      'callback_data'=>"payWithNextpay$hash_id"]];
-    if (!empty($nowpayments_api))             $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_crypto'],       'callback_data'=>"payWithCrypto$hash_id"]];
-
-    $fa_price = number_format($price) . " تومان";
-    sendMessage("✅ ریمارک ثبت شد: <code>$remark</code>\n\n👥 تعداد: $count\n💵 مبلغ کل: $fa_price\nیک روش پرداخت انتخاب کن:", json_encode($keyboard));
-    setUser();
-    exit();
-}
-
-
 if(preg_match('/payWithWallet(.*)/',$data, $match)){
     setUser();
 
