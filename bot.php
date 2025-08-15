@@ -2713,12 +2713,8 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
             if(is_numeric($text)){
                 if($text > 0){
                     $accountCount = $text;
-                    
-        // Redirect to remark collection before building payment
-        sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و -).", $cancelKey);
-        setUser("enterBulkRemarkPlan{$match[1]}_{$accountCount}");
-        exit();
-        }else{sendMessage( $mainValues['send_positive_number']); exit(); }
+                    setUser();
+                }else{sendMessage( $mainValues['send_positive_number']); exit(); }
             }else{ sendMessage($mainValues['send_only_number']); exit(); }
         }        
     }
@@ -2798,14 +2794,7 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
             $stmt->execute();
             $rowId = $stmt->insert_id;
             $stmt->close();
-            // Ask for remark first in bulk purchase, then stop here
-            if (isset($accountCount) && isset($match['buyType']) && $match['buyType'] === 'much'){
-                sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ حروف انگلیسی، عدد، _ و -).", $cancelKey);
-                setUser("enterBulkRemark{$hash_id}");
-                exit();
-            }
-        }
-        else{
+        }else{
             $price = $afterDiscount;
         }
         
@@ -3513,7 +3502,6 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
         sendMessage("❗️رعایت کن: ۳ تا ۳۲ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و -");
         exit();
     }
-
     $planId = (int)$m[1];
     $count  = (int)$m[2];
 
@@ -3544,11 +3532,11 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
         $agentBought = true;
     }
 
-    // فقط اگر «پایه» رایگان است یا ادمینی → دکمه رایگان
+    // فقط اگر «پایه» رایگانه یا ادمینی → دریافت رایگان
     if ($base == 0 || $from_id == $admin) {
         $keyboard = [];
         $keyboard[] = [['text' => '📥 دریافت رایگان', 'callback_data' => "freeTrial{$planId}_much"]];
-        setUser($remark, 'temp'); // ریمارک موقت برای ساخت رایگان
+        setUser($remark, 'temp');
         sendMessage("پلن انتخاب شد؛ دریافت رایگان:", json_encode(['inline_keyboard'=>$keyboard]));
         exit();
     }
@@ -3577,7 +3565,7 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
 
     $fa_price = number_format($price) . " تومان";
     sendMessage("✅ ریمارک ثبت شد: <code>$remark</code>\n\n👥 تعداد: $count\n💵 مبلغ کل: $fa_price\nیک روش پرداخت انتخاب کن:", json_encode($keyboard));
-    setUser(); // خروج از step
+    setUser();
     exit();
 }
 
@@ -3592,14 +3580,7 @@ if(preg_match('/payWithWallet(.*)/',$data, $match)){
     $stmt->close();
     
     
-    
-    // Ensure remark present; if empty, ask user now
-    if (empty($payInfo['description'])){
-        sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ حروف انگلیسی، عدد، _ و -).", $cancelKey);
-        setUser("enterBulkRemark{$match[1]}");
-        exit();
-    }
-$uid = $from_id;
+    $uid = $from_id;
     $fid = $payInfo['plan_id'];
     $acctxt = '';
     
