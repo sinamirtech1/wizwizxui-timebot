@@ -2794,7 +2794,14 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
             $stmt->execute();
             $rowId = $stmt->insert_id;
             $stmt->close();
-        }else{
+            // Ask for remark first in bulk purchase, then stop here
+            if (isset($accountCount) && isset($match['buyType']) && $match['buyType'] === 'much'){
+                sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ حروف انگلیسی، عدد، _ و -).", $cancelKey);
+                setUser("enterBulkRemark{$hash_id}");
+                exit();
+            }
+        }
+        else{
             $price = $afterDiscount;
         }
         
@@ -3505,7 +3512,14 @@ if(preg_match('/payWithWallet(.*)/',$data, $match)){
     $stmt->close();
     
     
-    $uid = $from_id;
+    
+    // Ensure remark present; if empty, ask user now
+    if (empty($payInfo['description'])){
+        sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ حروف انگلیسی، عدد، _ و -).", $cancelKey);
+        setUser("enterBulkRemark{$match[1]}");
+        exit();
+    }
+$uid = $from_id;
     $fid = $payInfo['plan_id'];
     $acctxt = '';
     
@@ -10134,93 +10148,3 @@ if ($text == $buttonValues['cancel']) {
     sendMessage($mainValues['reached_main_menu'],getMainKeys());
 }
 ?>
-
-
-elseif (preg_match('/^enterBulkRemark([A-Fa-f0-9]{16})$/', $userInfo['step'], $m)) {
-    $remark = trim($text);
-    if (!preg_match('/^[A-Za-z0-9_-]{3,32}$/', $remark)) {
-        sendMessage("❗️رعایت کن: ۳ تا ۳۲ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و -");
-        exit();
-    }
-    $hash_id = $m[1];
-    // ذخیره ریمارک در رکورد پرداخت
-    $stmt = $connection->prepare("UPDATE `pays` SET `description`=? WHERE `hash_id`=? AND `user_id`=? AND `state`='pending'");
-    $stmt->bind_param("ssi", $remark, $hash_id, $from_id);
-    $stmt->execute();
-    $ok = $stmt->affected_rows > 0;
-    $stmt->close();
-    if (!$ok) {
-        sendMessage("❌ رکورد پرداخت پیدا نشد یا در وضعیت مناسب نیست.");
-        setUser();
-        exit();
-    }
-    // بازیابی مبلغ برای نمایش دکمه‌ها
-    $stmt = $connection->prepare("SELECT `price` FROM `pays` WHERE `hash_id`=? AND `user_id`=?");
-    $stmt->bind_param("si", $hash_id, $from_id);
-    $stmt->execute();
-    $res = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if (!$res) { sendMessage("❌ خطا در خواندن مبلغ."); setUser(); exit(); }
-    $price = (int)$res['price'];
-    if ($price <= 0) $price = 1;
-    $keyboard = ['inline_keyboard'=>[]];
-    if ($botState['cartToCartState'] == "on")  $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_cart_to_cart'],  'callback_data'=>"payWithCartToCart$hash_id"]];
-    if ($botState['walletState']    == "on")  $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_wallet'],        'callback_data'=>"payWithWallet$hash_id"]];
-    if (!empty($zarinpal_merchantID))         $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_zarinpal'],     'callback_data'=>"payWithZarinpal$hash_id"]];
-    if (!empty($nextpay_merchantID))          $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_nextpay'],      'callback_data'=>"payWithNextpay$hash_id"]];
-    if (!empty($nowpayments_api))             $keyboard['inline_keyboard'][] = [['text'=>$buttonValues['pay_with_crypto'],       'callback_data'=>"payWithCrypto$hash_id"]];
-    $fa_price = number_format($price) . " تومان";
-    sendMessage("✅ ریمارک ثبت شد: <code>$remark</code>\n\n💵 مبلغ کل: $fa_price\nیک روش پرداخت انتخاب کن:", json_encode($keyboard));
-    setUser();
-    exit();
-}
-
-
-elseif (preg_match('/^payWithWallet([A-Fa-f0-9]{16})$/', $data, $m)) {
-    $hash_id = $m[1];
-    // اطلاعات پرداخت
-    $stmt = $connection->prepare("SELECT `price`,`state`,`description` FROM `pays` WHERE `hash_id`=? AND `user_id`=?");
-    $stmt->bind_param("si", $hash_id, $from_id);
-    $stmt->execute();
-    $payInfo = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if (!$payInfo) { sendMessage("❌ پرداخت پیدا نشد."); exit(); }
-    if ($payInfo['state'] !== 'pending') { sendMessage("ℹ️ این پرداخت قبلاً رسیدگی شده."); exit(); }
-    // اگر ریمارک خالی است، از کاربر بگیر
-    if (empty($payInfo['description'])) {
-        sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ حروف انگلیسی، عدد، _ و -).", $cancelKey);
-        setUser("enterBulkRemark{$hash_id}");
-        exit();
-    }
-    $need = (int)$payInfo['price'];
-    if ($need <= 0) $need = 1;
-    // موجودی
-    $stmt = $connection->prepare("SELECT `wallet` FROM `users` WHERE `user_id`=?");
-    $stmt->bind_param("i", $from_id);
-    $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    $bal = (int)($user['wallet'] ?? 0);
-    if ($bal < $need) {
-        $need_fa = number_format($need); $bal_fa = number_format($bal);
-        sendMessage("❗️موجودی کافی نیست.\nنیاز: {$need_fa} تومان\nموجودی: {$bal_fa} تومان");
-        exit();
-    }
-    // کسر موجودی
-    $stmt = $connection->prepare("UPDATE `users` SET `wallet`=`wallet`-? WHERE `user_id`=?");
-    $stmt->bind_param("ii", $need, $from_id);
-    $stmt->execute();
-    $stmt->close();
-    // علامت‌گذاری پرداخت
-    $now = time();
-    $stmt = $connection->prepare("UPDATE `pays` SET `state`='paid', `pay_date`=? WHERE `hash_id`=?");
-    $stmt->bind_param("is", $now, $hash_id);
-    $stmt->execute();
-    $stmt->close();
-    // ادامه: ساخت یوزر (روال موجود پروژه شما)
-    // NOTE: اگه ساخت یوزر در جای دیگری انجام می‌شود، از همین hash_id مسیر را ادامه بده.
-    sendMessage("✅ پرداخت با موجودی انجام شد. در حال ساخت اشتراک...");
-    // اینجا معمولاً تابع ساخت کاربر صدا زده می‌شود.
-    exit();
-}
-
