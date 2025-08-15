@@ -2708,16 +2708,17 @@ if((preg_match('/^discountSelectPlan(\d+)_(\d+)_(\d+)/',$userInfo['step'],$match
     }
 
     $remark = "";
-    if(preg_match("/selectPlan(\d+)_(\d+)_(\w+)/",$userInfo['step'])){
+    if(preg_match('/^selectPlan(\d+)_(\d+)_(?<buyType>\w+)$/', $userInfo['step'], $match)){
         if($match['buyType'] == "much"){
             if(is_numeric($text)){
                 if($text > 0){
-                    $accountCount = (int)$text;
-                    // After getting bulk count, ask for remark instead of proceeding
+                    $accountCount = $text;
+                    // Redirect to remark collection for bulk purchase
                     sendMessage("✍️ ریمارک دلخواهت رو بفرست (۳ تا ۳۲ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و -).", $cancelKey);
-                    setUser("enterBulkRemarkPlan{$id}_{$accountCount}");
+                    setUser("enterBulkRemarkPlan{$match[1]}_{$accountCount}");
                     exit();
-}else{sendMessage( $mainValues['send_positive_number']); exit(); }
+    
+                }else{sendMessage( $mainValues['send_positive_number']); exit(); }
             }else{ sendMessage($mainValues['send_only_number']); exit(); }
         }        
     }
@@ -3507,7 +3508,6 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
     $planId = (int)$m[1];
     $count  = (int)$m[2];
 
-    // دریافت اطلاعات پلن
     $stmt = $connection->prepare("SELECT * FROM `server_plans` WHERE `id`=? AND `active`=1");
     $stmt->bind_param("i", $planId);
     $stmt->execute();
@@ -3519,7 +3519,6 @@ elseif (preg_match('/^enterBulkRemarkPlan(\d+)_(\d+)$/', $userInfo['step'], $m))
     $sid   = (int)$respd['server_id'];
     $price = $base * $count;
 
-    // تخفیف نماینده
     $agentBought = false;
     if (!empty($userInfo['is_agent'])) {
         $discounts = json_decode($userInfo['discount_percent'], true) ?: [];
