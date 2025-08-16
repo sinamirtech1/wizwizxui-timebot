@@ -1,4 +1,73 @@
 <?php
+// === PATCH C1: Bulk usernames auto-numbering from a single base name (idempotent) ===
+if (isset($text)) {
+    $__step = isset($userInfo['step']) ? $userInfo['step'] : '';
+    $__isAgent = !empty($userInfo['is_agent']);
+    $__shouldHandleNames =
+        $__isAgent && (
+            $__step === 'awaiting_bulk_usernames' ||
+            $__step === 'awaiting_bulk_names' ||
+            (strpos($__step, 'awaiting_bulk') !== false && strpos($__step, 'name') !== false)
+        );
+
+    if ($__shouldHandleNames) {
+        // Load temp info (we expect JSON containing bulk_qty and bulk_names)
+        $__tmp = ['bulk_qty'=>0,'bulk_names'=>[]];
+        if (!empty($userInfo['temp'])) {
+            $dec = json_decode($userInfo['temp'], true);
+            if (is_array($dec)) { $__tmp = array_merge($__tmp, $dec); }
+        }
+        $__qty = intval(isset($__tmp['bulk_qty']) ? $__tmp['bulk_qty'] : 0);
+
+        if ($__qty <= 0) {
+            if (function_exists('sendMessage')) { @sendMessage("❌ تعداد نامشخص است. لطفاً از اول «خرید انبوه» را شروع کن."); }
+            if (function_exists('setUser')) { @setUser(null, 'step'); }
+            return;
+        }
+
+        $__base = trim($text);
+        if ($__base === '') {
+            if (function_exists('sendMessage')) { @sendMessage("❌ نام پایه خالی است."); }
+            return;
+        }
+
+        if (!preg_match('/^[A-Za-z0-9._-]{1,32}$/', $__base)) {
+            if (function_exists('sendMessage')) { @sendMessage("❌ نام معتبر نیست. فقط حروف/عدد/._- و حداکثر ۳۲ کاراکتر."); }
+            return;
+        }
+
+        // Build names: if base ends with number, increment from there; else start from 1
+        $__names = [];
+        if (preg_match('/^(.*?)(\d+)$/', $__base, $__m)) {
+            $__prefix = $__m[1];
+            $__startNum = intval($__m[2]);
+        } else {
+            $__prefix = $__base;
+            $__startNum = 1;
+        }
+        for ($i = 0; $i < $__qty; $i++) {
+            $__names[] = $__prefix . ($__startNum + $i);
+        }
+
+        $__tmp['bulk_names'] = $__names;
+        if (function_exists('setUser')) {
+            @setUser(json_encode($__tmp, JSON_UNESCAPED_UNICODE), 'temp');
+            @setUser(null, 'step');
+        }
+
+        $__preview = implode("\\n", $__names);
+        if (function_exists('sendMessage')) {
+            if (function_exists('getPaymentKeyboard')) {
+                @sendMessage("✅ اسامی ساخته شد:\\n$__preview\\nحالا روش پرداخت را انتخاب کن.", getPaymentKeyboard());
+            } else {
+                @sendMessage("✅ اسامی ساخته شد:\\n$__preview\\nحالا از منو روش پرداخت را انتخاب کن.");
+            }
+        }
+        return;
+    }
+}
+// === END PATCH C1 ===
+
 include_once 'config.php';
 check();
 $robotState = $botState['botState']??"on";
