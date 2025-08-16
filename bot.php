@@ -1,25 +1,64 @@
 <?php
-// === PATCH C2: After qty, go to awaiting_bulk_usernames and ask for base name (idempotent) ===
-if (isset($userInfo['step']) && $userInfo['step'] === 'awaiting_agent_count' && isset($text) && trim($text) !== '') {
-    $qtyRaw = trim($text);
-    if (!ctype_digit($qtyRaw) || intval($qtyRaw) <= 0) {
-        if (function_exists('sendMessage')) { @sendMessage("❌ تعداد نامعتبره. فقط یک عدد مثبت بفرست (مثلاً 3)."); }
+    // === PATCH C2: After qty, move to awaiting_bulk_usernames and ask for base name ===
+    if (isset($userInfo['step']) && $userInfo['step'] === 'awaiting_agent_count' && isset($text) && trim($text) !== '') {
+        $qtyRaw = trim($text);
+        if (!ctype_digit($qtyRaw) || intval($qtyRaw) <= 0) {
+            if (function_exists('sendMessage')) { @sendMessage("❌ تعداد نامعتبره. فقط یک عدد مثبت بفرست (مثلاً 3)."); }
+            return;
+        }
+        $qty = intval($qtyRaw);
+
+        // Store qty in temp JSON so next step can build names
+        $tmp = ['bulk_qty' => $qty, 'bulk_names' => []];
+        if (function_exists('setUser')) {
+            @setUser(json_encode($tmp, JSON_UNESCAPED_UNICODE), 'temp');
+            @setUser('awaiting_bulk_usernames', 'step');
+        }
+        if (function_exists('sendMessage')) {
+            @sendMessage("✅ تعداد {$qty} ثبت شد.
+📝 حالا اسم پایه اکانت‌ها رو بفرست (مثلاً Metro-1).");
+        }
         return;
     }
-    $qty = intval($qtyRaw);
 
-    // Store qty in temp JSON so next step can build names
-    $tmp = ['bulk_qty' => $qty, 'bulk_names' => []];
-    if (function_exists('setUser')) {
-        @setUser(json_encode($tmp, JSON_UNESCAPED_UNICODE), 'temp');
-        @setUser('awaiting_bulk_usernames', 'step');
+    // === PATCH C3: After receiving base name, generate serial usernames and go to payment ===
+    if (isset($userInfo['step']) && $userInfo['step'] === 'awaiting_bulk_usernames' && !empty($text) && !empty($userInfo['is_agent'])) {
+        $base = strtolower(trim($text)); // all lowercase
+        // Replace dash and dot with underscores
+        $base = str_replace(['-', '.'], '_', $base);
+
+        // Validate the base name
+        if (!preg_match('/^[a-z0-9_]{3,32}$/', $base)) {
+            sendMessage("❌ نام پایه معتبر نیست. فقط a-z, 0-9, _ و طول بین ۳ تا ۳۲ کاراکتر.");
+            return;
+        }
+
+        // Build names: if base ends with number, increment from there; else start from 1
+        $names = [];
+        if (preg_match('/^(.*?)(\d+)$/', $base, $m)) {
+            $prefix = $m[1];
+            $startNum = intval($m[2]);
+        } else {
+            $prefix = $base;
+            $startNum = 1;
+        }
+
+        for ($i = 0; $i < $qty; $i++) {
+            $names[] = $prefix . ($startNum + $i);
+        }
+
+        // Save names and move on to payment
+        $tmp['bulk_names'] = $names;
+        setUser(json_encode($tmp, JSON_UNESCAPED_UNICODE), 'temp');
+        setUser(null, 'step'); // exit the current step
+
+        // Show preview and move to payment selection
+        sendMessage("✅ اسامی ساخته شد:
+" . implode("
+", $names) . "
+حالا روش پرداخت رو انتخاب کن.", getPaymentKeyboard());
+        return;
     }
-    if (function_exists('sendMessage')) {
-        @sendMessage("✅ تعداد {$qty} ثبت شد.\n📝 حالا اسم پایه اکانت‌ها رو بفرست (مثلاً Metro-1).");
-    }
-    return;
-}
-// === END PATCH C2 ===
 
 include_once 'config.php';
 check();
